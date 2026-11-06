@@ -1,0 +1,10 @@
+fastapi==0.162.2
+email-validator==2.3.0
+uvicorn==0.54.0
+httpx==0.28.1
+psycopg[binary]==3.3.8
+psycopg-pool==3.3.3
+pymongo==4.19.0
+ariadne==1.1.1
+pyjwt==2.15.1
+prometheus-client==0.26.0
