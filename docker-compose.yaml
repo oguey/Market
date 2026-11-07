@@ -31,6 +31,47 @@ services:
       timeout: 3s
       retries: 10
 
+  # ---------------------------------------------------------------- microservices
+  inventory:
+    build: { context: ./services, args: { SERVICE: inventory } }
+    env_file: .env
+    environment: { POSTGRES_HOST: postgres }
+    ports: ["8002:8000"]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: unless-stopped
+
+  payments:
+    build: { context: ./services, args: { SERVICE: payments } }
+    env_file: .env
+    environment: { POSTGRES_HOST: postgres }
+    ports: ["8003:8000"]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: unless-stopped
+
+  catalog:
+    build: { context: ./services, args: { SERVICE: catalog } }
+    env_file: .env
+    environment: { MONGO_HOST: mongo }
+    ports: ["8004:8000"]
+    depends_on: { mongo: { condition: service_healthy } }
+    restart: unless-stopped
+
+  orders:
+    build: { context: ./services, args: { SERVICE: orders } }
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      CATALOG_URL: http://catalog:8000
+      INVENTORY_URL: http://inventory:8000
+      PAYMENTS_URL: http://payments:8000
+    ports: ["8001:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      catalog: { condition: service_started }
+      inventory: { condition: service_started }
+      payments: { condition: service_started }
+    restart: unless-stopped
+
 volumes:
   pg_data:
   mongo_data:
