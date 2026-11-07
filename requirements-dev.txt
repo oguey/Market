@@ -1,0 +1,5 @@
+-r services/requirements.txt
+pytest==9.2.0
+# Real PostgreSQL 16 and MongoDB 7 started in-process by the tests (no Docker needed)
+pgserver==0.1.4
+pymongo-inmemory==0.5.0

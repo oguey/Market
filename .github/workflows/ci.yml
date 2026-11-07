@@ -1,0 +1,13 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  tests:
+    # 22.04: the in-process MongoDB used by the tests is the Ubuntu 22.04 build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements-dev.txt }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
