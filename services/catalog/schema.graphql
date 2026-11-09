@@ -1,0 +1,64 @@
+"""
+Market catalog — GraphQL contract (v1). Written first; the resolvers implement it.
+Every operation requires `Authorization: Bearer <JWT>` (HTTP 401 otherwise).
+Forbidden operations return an error with extensions.code = "FORBIDDEN".
+Other codes: BAD_USER_INPUT, NOT_FOUND, CONFLICT.
+"""
+scalar JSON
+
+enum ProductStatus {
+  active
+  "Archived: hidden from sale but kept because orders may reference it."
+  inactive
+}
+
+type Product {
+  productId: Int!
+  name: String!
+  category: String!
+  "Price in cents (same unit as PostgreSQL)."
+  priceCents: Int!
+  tags: [String!]!
+  description: String
+  "Category-specific characteristics, e.g. {\"battery_hours\": 30} or {\"size\": 42}."
+  attributes: JSON!
+  status: ProductStatus!
+  indexedAt: String
+}
+
+input ProductInput {
+  productId: Int!
+  name: String!
+  category: String!
+  priceCents: Int!
+  tags: [String!]
+  description: String
+  attributes: JSON
+}
+
+input ProductPatch {
+  name: String
+  category: String
+  priceCents: Int
+  tags: [String!]
+  description: String
+  attributes: JSON
+}
+
+type Query {
+  "Roles: all."
+  product(productId: Int!): Product
+  "Roles: all. `search` uses the MongoDB text index on name + description."
+  products(ids: [Int!], category: String, search: String, status: ProductStatus, limit: Int = 50): [Product!]!
+}
+
+type Mutation {
+  "Roles: admin, catalog_manager."
+  createProduct(input: ProductInput!): Product!
+  "Roles: admin, catalog_manager."
+  updateProduct(productId: Int!, patch: ProductPatch!): Product!
+  "Roles: admin, catalog_manager. Preferred over delete once a product may have been ordered."
+  archiveProduct(productId: Int!): Product!
+  "Roles: admin only. Hard delete."
+  deleteProduct(productId: Int!): Boolean!
+}
