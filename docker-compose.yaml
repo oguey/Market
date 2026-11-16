@@ -136,6 +136,18 @@ services:
       lake-init: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
+  # Nettoyage raw -> staging avec Spark. À lancer à la demande :
+  #   docker compose run --rm lake-staging
+  lake-staging:
+    build: ./lake/spark
+    container_name: market-lake-staging
+    env_file: .env
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+    depends_on:
+      lake-init: { condition: service_completed_successfully }
+    restart: "no"
+    profiles: ["jobs"]
 volumes:
   pg_data:
   mongo_data:
