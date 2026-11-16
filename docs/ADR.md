@@ -13,6 +13,7 @@ Statuses: *proposed*, *accepted*, *superseded*.
 | [006](#adr-006--jwt-checked-in-every-service-rbac-in-code) | JWT checked in every service, RBAC in code | accepted |
 | [007](#adr-007--rest-contracts-versioned-snapshots-under-v1) | REST contracts: versioned snapshots under `/v1` | accepted |
 | [008](#adr-008--tests-against-real-databases-without-docker) | Tests against real databases, without Docker | accepted |
+| [010](#adr-010--auth-service-bcrypt-login-access--refresh-jwt) | Auth service: bcrypt login, access + refresh JWT | accepted |
 
 ---
 
@@ -210,3 +211,30 @@ with `httpx.MockTransport`.
 **Consequences.**
 - ➕ 54 tests in about 10 s, with no Docker. They cover the saga, idempotency, the circuit breaker, RBAC, isolation and contracts.
 - ➖ The first run downloads MongoDB (about 100 MB). The in-process MongoDB build targets Ubuntu 22.04, and CI is pinned to it.
+
+---
+
+## ADR-010 — Auth service: bcrypt login, access + refresh JWT
+
+**Status:** accepted (supersedes the "Plan B" note of ADR-006 for token issuing; HS256 is kept)
+
+**Context.** The brief requires a login service (bcrypt or argon2) with a refresh token. Until now tokens were
+minted by `common.devtoken`, so no real user could sign in and place an order.
+
+**Options.**
+1. *Keep dev tokens only.* Nothing to build, but no real login and no demo for users.
+2. *External identity provider (Keycloak).* Complete, but heavy for this project and one more thing to run.
+3. *Small dedicated `auth` service* on PostgreSQL schema `auth`, passwords hashed with bcrypt, returning a short access JWT and a longer refresh JWT.
+
+**Decision.** Option 3. `POST /v1/auth/login` checks email and password (bcrypt, cost 12, constant-time
+even for unknown emails) and returns an access token (15 min) and a refresh token (7 days, `typ: refresh`).
+`POST /v1/auth/refresh` issues a new access token and re-reads the roles from the database, so a disabled
+user or a role change takes effect at the next refresh. Tokens keep the ADR-006 claims (`sub`, `roles`,
+`iat`, `exp`): no email or personal data. `POST /v1/auth/users` (admin only) creates users. The `auth`
+service uses a SQL role limited to its own schema. The front keeps tokens in `sessionStorage` and refreshes
+silently on a 401.
+
+**Consequences.**
+- ➕ Real sign-in, the rights matrix of ADR-006 now applies to real users, passwords are never stored in clear.
+- ➖ One more service to run. Tokens are still signed with a shared secret (HS256): move to RS256 if the services ever leave a single trust zone.
+- ➖ A refresh token cannot be revoked before it expires (no server-side list). A revocation table is the next step if needed.

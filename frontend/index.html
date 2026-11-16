@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f7fb">
+    <meta name="description" content="Console de pilotage de la plateforme Market">
+    <title>Market — Console de pilotage</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#" aria-label="Market, accueil" data-page="overview">
+          <span class="brand-mark">m</span>
+          <span class="brand-copy"><strong>market</strong><small>OPERATIONS</small></span>
+        </a>
+        <div class="workspace-label">ESPACE DE TRAVAIL</div>
+        <nav class="main-nav" aria-label="Navigation principale">
+          <button class="nav-link active" data-page="overview"><span class="nav-icon">⌂</span>Vue d’ensemble</button>
+          <button class="nav-link" data-page="orders"><span class="nav-icon">▤</span>Commandes<span class="nav-count" id="nav-order-count">—</span></button>
+          <button class="nav-link" data-page="catalog"><span class="nav-icon">◫</span>Catalogue</button>
+          <button class="nav-link" data-page="logistics"><span class="nav-icon">⌑</span>Logistique</button>
+          <button class="nav-link" data-page="observability"><span class="nav-icon">⌁</span>Observabilité</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="sidebar-status"><span class="status-dot" id="sidebar-status-dot"></span><span id="sidebar-status-text">Connexion en attente</span></div>
+          <button class="user-card" id="user-menu" type="button">
+            <span class="avatar" id="user-avatar">M</span>
+            <span class="user-copy"><strong id="user-name">Équipe Market</strong><small id="user-role">Non connecté</small></span>
+            <span class="user-menu-icon">···</span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobile-menu" aria-label="Ouvrir le menu">☰</button>
+          <div class="breadcrumbs"><span>Market</span><span class="crumb-separator">/</span><strong id="breadcrumb-current">Vue d’ensemble</strong></div>
+          <div class="topbar-actions">
+            <span class="refresh-label"><span class="pulse-dot"></span>Actualisation toutes les 30 s</span>
+            <button class="icon-button" id="refresh-button" title="Actualiser les données" aria-label="Actualiser les données">↻</button>
+            <button class="top-user" id="top-user" aria-label="Gérer la session"><span id="top-avatar">M</span></button>
+          </div>
+        </header>
+
+        <div class="content">
+          <section class="page-section active" id="page-overview">
+            <div class="page-heading">
+              <div><p class="eyebrow" id="today-label">VOTRE ACTIVITÉ</p><h1>Vue d’ensemble</h1><p class="page-subtitle">Suivez l’activité de votre plateforme en un coup d’œil.</p></div>
+              <div class="heading-meta"><span class="live-pill"><span class="pulse-dot"></span>Suivi actif</span><span class="updated-label" id="last-updated">En attente des données</span></div>
+            </div>
+            <div class="notice notice-info" id="connection-notice"><span class="notice-icon">i</span><span>Connectez-vous avec votre compte pour charger les données du projet.</span><button class="text-button" data-open-auth>Se connecter</button></div>
+            <div class="error-banner hidden" id="global-error" role="status"></div>
+            <div class="metric-grid">
+              <article class="metric-card"><div class="metric-top"><span>Commandes du jour</span><span class="metric-icon purple">▤</span></div><strong class="metric-value" id="metric-orders">—</strong><div class="metric-foot"><span class="metric-caption">Toutes commandes confondues</span><span class="metric-symbol">↗</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>Chiffre d’affaires</span><span class="metric-icon green">€</span></div><strong class="metric-value" id="metric-revenue">—</strong><div class="metric-foot"><span class="metric-caption">Commandes payées et en cours</span><span class="metric-symbol">↗</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>Panier moyen</span><span class="metric-icon orange">◉</span></div><strong class="metric-value" id="metric-basket">—</strong><div class="metric-foot"><span class="metric-caption">Sur les commandes du jour</span><span class="metric-symbol">↗</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>Entrepôts à surveiller</span><span class="metric-icon red">⌑</span></div><strong class="metric-value" id="metric-warehouses">—</strong><div class="metric-foot"><span class="metric-caption">Taux de remplissage ≥ 90 %</span><span class="metric-symbol">↗</span></div></article>
+            </div>
+            <div class="dashboard-grid">
+              <article class="panel chart-panel">
+                <div class="panel-heading"><div><h2>Commandes aujourd’hui</h2><p>Répartition par heure · données API</p></div><span class="period-label">AUJOURD’HUI <span>⌄</span></span></div>
+                <div class="chart-summary"><strong id="chart-total">—</strong><span>commandes</span></div>
+                <div class="bar-chart" id="orders-chart" aria-label="Commandes par heure"></div>
+              </article>
+              <article class="panel alerts-panel">
+                <div class="panel-heading"><div><h2>À surveiller</h2><p>Alertes calculées à partir des API</p></div><span class="alert-counter" id="alert-count">0</span></div>
+                <div class="alert-list" id="alert-list"><div class="empty-state compact">Les alertes apparaîtront après connexion.</div></div>
+                <button class="panel-link" data-page="logistics">Voir la logistique <span>→</span></button>
+              </article>
+            </div>
+            <article class="panel table-panel">
+              <div class="panel-heading"><div><h2>Commandes récentes</h2><p>Les dernières commandes enregistrées</p></div><button class="panel-link" data-page="orders">Toutes les commandes <span>→</span></button></div>
+              <div class="table-wrap"><table><thead><tr><th>RÉFÉRENCE</th><th>CLIENT</th><th>DATE</th><th>MONTANT</th><th>STATUT</th><th></th></tr></thead><tbody id="overview-orders"></tbody></table></div>
+            </article>
+          </section>
+
+          <section class="page-section" id="page-orders">
+            <div class="page-heading"><div><p class="eyebrow">VENTES &amp; TRANSACTIONS</p><h1>Commandes</h1><p class="page-subtitle">Consultez les commandes récentes et leur statut.</p></div><button class="secondary-button" data-refresh>↻ <span>Actualiser</span></button></div>
+            <article class="panel table-panel full-panel">
+              <div class="panel-toolbar"><div class="search-wrap"><span>⌕</span><input id="order-search" placeholder="Rechercher une commande ou un client" aria-label="Rechercher une commande ou un client"></div><select id="order-filter" aria-label="Filtrer par statut"><option value="">Tous les statuts</option><option value="paid">Payée</option><option value="preparing">En préparation</option><option value="delivered">Livrée</option><option value="payment_failed">Échec de paiement</option><option value="cancelled">Annulée</option></select></div>
+              <div class="table-wrap"><table><thead><tr><th>RÉFÉRENCE</th><th>CLIENT</th><th>DATE</th><th>ARTICLES</th><th>MONTANT</th><th>STATUT</th><th></th></tr></thead><tbody id="orders-table"></tbody></table></div>
+              <div class="table-footer" id="orders-footer">Chargement des commandes…</div>
+            </article>
+          </section>
+
+          <section class="page-section" id="page-catalog">
+            <div class="page-heading"><div><p class="eyebrow">OFFRE PRODUIT</p><h1>Catalogue</h1><p class="page-subtitle">Produits et caractéristiques issus de l’API GraphQL du catalogue.</p></div><button class="secondary-button" data-refresh>↻ <span>Actualiser</span></button></div>
+            <article class="panel table-panel full-panel">
+              <div class="panel-toolbar"><div class="search-wrap"><span>⌕</span><input id="product-search" placeholder="Rechercher un produit ou une catégorie" aria-label="Rechercher un produit ou une catégorie"></div><span class="subtle-label" id="catalog-count">— produits</span></div>
+              <div class="table-wrap"><table><thead><tr><th>PRODUIT</th><th>CATÉGORIE</th><th>CARACTÉRISTIQUES</th><th>PRIX</th><th>STOCK TOTAL</th><th>STATUT</th></tr></thead><tbody id="catalog-table"></tbody></table></div>
+              <div class="table-footer">Le stock est lu depuis le service Inventory ; les produits sont lus depuis MongoDB.</div>
+            </article>
+          </section>
+
+          <section class="page-section" id="page-logistics">
+            <div class="page-heading"><div><p class="eyebrow">OPÉRATIONS &amp; STOCKS</p><h1>Logistique</h1><p class="page-subtitle">Capacité des entrepôts et niveaux de remplissage.</p></div><button class="secondary-button" data-refresh>↻ <span>Actualiser</span></button></div>
+            <div class="logistics-summary" id="logistics-summary"></div>
+            <div class="warehouse-grid" id="warehouse-grid"><div class="panel empty-state">Connectez-vous pour charger les entrepôts.</div></div>
+            <div class="notice notice-info logistics-note"><span class="notice-icon">i</span><span>Le taux de remplissage et le statut sont calculés par le service Inventory. Les mises à jour sont interrogées toutes les 30 secondes ; aucun flux Kafka n’est actuellement connecté à l’interface.</span></div>
+          </section>
+
+          <section class="page-section" id="page-observability">
+            <div class="page-heading"><div><p class="eyebrow">FIABILITÉ DE LA PLATEFORME</p><h1>Observabilité</h1><p class="page-subtitle">État de santé et métriques Prometheus des microservices.</p></div><button class="secondary-button" data-refresh>↻ <span>Actualiser</span></button></div>
+            <div class="health-summary" id="health-summary"></div>
+            <article class="panel table-panel full-panel"><div class="panel-heading"><div><h2>Services</h2><p>Mesures cumulées disponibles depuis le dernier démarrage des services</p></div><span class="subtle-label">PROMETHEUS</span></div><div class="table-wrap"><table><thead><tr><th>SERVICE</th><th>ÉTAT</th><th>LATENCE MOYENNE</th><th>REQUÊTES / S</th><th>ERREURS 5XX</th><th></th></tr></thead><tbody id="health-table"></tbody></table></div></article>
+            <div class="notice notice-warning observability-note"><span class="notice-icon">!</span><span>Les métriques Grafana, les traces OpenTelemetry et le pipeline Kafka ne sont pas déployés dans la configuration actuelle. Les composants absents sont signalés sans inventer de mesures.</span></div>
+          </section>
+
+          <footer class="page-footer"><span>Market Operations Console</span><span>Prototype interne · Sources : APIs REST &amp; GraphQL</span></footer>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <form class="auth-dialog" id="auth-form">
+        <button class="modal-close" type="button" id="close-auth" aria-label="Fermer">×</button>
+        <aside class="auth-visual" aria-label="Market Operations">
+          <a class="brand auth-brand" href="#" aria-label="Market">
+            <span class="brand-mark">m</span>
+            <span class="brand-copy"><strong>market</strong><small>OPERATIONS</small></span>
+          </a>
+          <div class="auth-visual-copy">
+            <span class="auth-kicker"><span class="auth-kicker-dot"></span> VOTRE ESPACE DE PILOTAGE</span>
+            <h2>Chaque opération,<br>en un seul endroit.</h2>
+            <p>Commandes, catalogue et logistique réunis pour vous aider à garder une longueur d’avance.</p>
+          </div>
+          <div class="auth-visual-card" aria-hidden="true">
+            <div class="auth-visual-card-top"><span>Activité de la plateforme</span><span class="auth-live"><i></i> En direct</span></div>
+            <div class="auth-visual-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="auth-visual-card-foot"><span>Commandes</span><span>Catalogue</span><span>Logistique</span></div>
+          </div>
+          <p class="auth-visual-footer">Un espace sécurisé pour votre équipe.</p>
+        </aside>
+        <div class="auth-form-content">
+          <span class="auth-mobile-brand"><span class="brand-mark">m</span><strong>market</strong></span>
+          <p class="eyebrow">BIENVENUE</p>
+          <h1 id="auth-title">Connectez-vous</h1>
+          <p class="auth-intro">Accédez à votre espace Market avec vos identifiants professionnels.</p>
+          <label class="field-label" for="email-input">Adresse e-mail</label>
+          <input id="email-input" type="email" placeholder="vous@entreprise.com" autocomplete="username" required>
+          <label class="field-label" for="password-input">Mot de passe</label>
+          <div class="password-field">
+            <input id="password-input" type="password" placeholder="Saisissez votre mot de passe" autocomplete="current-password" required>
+            <button class="password-toggle" id="toggle-password" type="button" aria-label="Afficher le mot de passe" aria-pressed="false">Afficher</button>
+          </div>
+          <p class="form-error hidden" id="auth-error" role="alert"></p>
+          <button class="primary-button auth-submit" id="auth-submit" type="submit"><span>Se connecter</span><span aria-hidden="true">→</span></button>
+          <p class="auth-help">L’accès est réservé aux membres de votre équipe.<br>Votre session reste privée sur cet appareil.</p>
+        </div>
+      </form>
+    </div>
+    <div class="toast hidden" id="toast" role="status"></div>
+  </body>
+</html>

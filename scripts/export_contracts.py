@@ -10,7 +10,7 @@ from pathlib import Path
 
 SERVICES = Path(__file__).resolve().parent.parent / "services"
 sys.path.insert(0, str(SERVICES))
-REST = ("orders", "inventory", "payments")
+REST = ("orders", "inventory", "payments", "auth")
 
 
 def openapi(service: str) -> dict:

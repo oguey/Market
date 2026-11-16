@@ -71,6 +71,24 @@ services:
       inventory: { condition: service_started }
       payments: { condition: service_started }
     restart: unless-stopped
+    
+  auth:
+    build: { context: ./services, args: { SERVICE: auth } }
+    env_file: .env
+    environment: { POSTGRES_HOST: postgres }
+    ports: ["8005:8000"]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: unless-stopped 
+
+  frontend:
+    build: ./frontend
+    ports: ["3000:80"]
+    depends_on:
+      orders: { condition: service_started }
+      inventory: { condition: service_started }
+      payments: { condition: service_started }
+      catalog: { condition: service_started }
+    restart: unless-stopped
 
 volumes:
   pg_data:

@@ -22,7 +22,21 @@ docker compose up --build
 > The DB init scripts only run on an **empty** volume. If you started the databases before this change,
 > run `docker compose down -v` once.
 
-Get a token (until the auth service exists):
+Open the frontend at **http://localhost:3000**. It provides the overview, orders, catalog, logistics
+and service-health pages. The UI reads the existing REST and GraphQL APIs and refreshes data every
+30 seconds. Kafka, Grafana and a dedicated login service are not part of the current compose setup;
+the interface reports them as unavailable rather than displaying sample data.
+
+To sign in to the frontend, generate a local demo token and paste it into the login dialog:
+
+```bash
+docker compose exec orders python -m common.devtoken analyst
+```
+
+The JWT is kept in the current browser tab's session storage. Use `admin` instead of `analyst` for
+the admin role. The backend remains responsible for validating the token and authorizing each API call.
+
+For direct API requests, get a token as follows:
 
 ```bash
 TOKEN=$(docker compose exec -T orders python -m common.devtoken admin)

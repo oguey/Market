@@ -8,3 +8,4 @@ pymongo==4.19.0
 ariadne==1.1.1
 pyjwt==2.15.1
 prometheus-client==0.26.0
+bcrypt==5.0.0
