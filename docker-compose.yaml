@@ -79,7 +79,6 @@ services:
     ports: ["8005:8000"]
     depends_on: { postgres: { condition: service_healthy } }
     restart: unless-stopped 
-
   frontend:
     build: ./frontend
     ports: ["3000:80"]
@@ -90,6 +89,39 @@ services:
       catalog: { condition: service_started }
     restart: unless-stopped
 
+   # ---------------------------------------------------------------- data lake (volet 2)
+  # Stockage S3 local. MinIO n'est plus distribué (images supprimées en 2026) : on utilise RustFS.
+  rustfs:
+    image: rustfs/rustfs:1.0.0
+    container_name: market-rustfs
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # console web
+    volumes:
+      - lake_data:/data
+
+  # Crée les 4 zones du lac au démarrage (attend que le stockage réponde), puis s'arrête.
+  lake-init:
+    image: amazon/aws-cli:latest
+    container_name: market-lake-init
+    depends_on: [rustfs]
+    restart: "no"
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      for i in $$(seq 1 30); do aws --endpoint-url http://rustfs:9000 s3 ls >/dev/null 2>&1 && break; sleep 2; done;
+      for zone in raw staging curated consumption; do aws --endpoint-url http://rustfs:9000 s3 mb s3://$$zone || true; done;
+      aws --endpoint-url http://rustfs:9000 s3 ls"
+
 volumes:
   pg_data:
   mongo_data:
+  lake_data:
