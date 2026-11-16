@@ -20,9 +20,11 @@ STATUSES = ["pending", "paid", "payment_failed", "cancelled", "preparing", "deli
 EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
-def build_spark():
-    builder = SparkSession.builder.appName("market-raw-to-staging")
-    if RAW.startswith("s3a://") or STAGING.startswith("s3a://"):
+def build_spark(app_name="market-raw-to-staging", extra_conf=None, uris=None):
+    builder = SparkSession.builder.appName(app_name)
+    for key, value in (extra_conf or {}).items():
+        builder = builder.config(key, value)
+    if any(u.startswith("s3a://") for u in (uris or (RAW, STAGING))):
         builder = (
             builder.config("spark.hadoop.fs.s3a.endpoint", os.getenv("S3_ENDPOINT", "http://rustfs:9000"))
             .config("spark.hadoop.fs.s3a.access.key", os.environ["S3_ACCESS_KEY"])

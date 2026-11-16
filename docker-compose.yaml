@@ -148,6 +148,19 @@ services:
       lake-init: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
+  # Pseudonymisation, contrôles qualité et tables Delta : staging -> curated.
+  #   docker compose run --rm lake-curated
+  lake-curated:
+    build: ./lake/spark
+    container_name: market-lake-curated
+    command: ["python", "curated.py"]
+    env_file: .env
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+    depends_on:
+      lake-init: { condition: service_completed_successfully }
+    restart: "no"
+    profiles: ["jobs"]
 volumes:
   pg_data:
   mongo_data:
