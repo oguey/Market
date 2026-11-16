@@ -120,8 +120,24 @@ services:
       for i in $$(seq 1 30); do aws --endpoint-url http://rustfs:9000 s3 ls >/dev/null 2>&1 && break; sleep 2; done;
       for zone in raw staging curated consumption; do aws --endpoint-url http://rustfs:9000 s3 mb s3://$$zone || true; done;
       aws --endpoint-url http://rustfs:9000 s3 ls"
-
+  # Copie PostgreSQL + MongoDB vers la zone raw. À lancer à la demande :
+  #   docker compose run --rm lake-extract
+  lake-extract:
+    build: ./lake/extract
+    container_name: market-lake-extract
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      MONGO_HOST: mongo
+      S3_ENDPOINT: http://rustfs:9000
+    depends_on:
+      postgres: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      lake-init: { condition: service_completed_successfully }
+    restart: "no"
+    profiles: ["jobs"]
 volumes:
   pg_data:
   mongo_data:
   lake_data:
+  
