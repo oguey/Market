@@ -87,6 +87,7 @@ services:
       inventory: { condition: service_started }
       payments: { condition: service_started }
       catalog: { condition: service_started }
+      auth: { condition: service_started }
     restart: unless-stopped
 
    # ---------------------------------------------------------------- data lake (volet 2)

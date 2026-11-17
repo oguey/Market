@@ -15,6 +15,7 @@ Statuses: *proposed*, *accepted*, *superseded*.
 | [008](#adr-008--tests-against-real-databases-without-docker) | Tests against real databases, without Docker | accepted |
 | [010](#adr-010--auth-service-bcrypt-login-access--refresh-jwt) | Auth service: bcrypt login, access + refresh JWT | accepted |
 | [011](#adr-011--lakehouse-rustfs-four-zones-spark-and-delta) | Lakehouse: RustFS, four zones, Spark and Delta | accepted |
+| [012](#adr-012--api-gateway-nginx-with-jwt-check-and-rate-limiting) | API gateway: NGINX with JWT check and rate limiting | accepted |
 
 ---
 
@@ -273,3 +274,33 @@ zones, quality checks, a pseudonymised e-mail and a data catalogue. Everything m
 - ➖ Batch only: the lake is a copy refreshed on demand, not in real time (the Kafka stream of the next volet covers freshness).
 - ➖ Spark images are heavy (Java, about 1 GB) and the first build is slow.
 - ➖ RustFS 1.0 is recent. The jobs only use the plain S3 API, so another S3 store (Garage, SeaweedFS) could replace it by changing the endpoint.
+
+---
+
+## ADR-012 — API gateway: NGINX with JWT check and rate limiting
+
+**Status:** accepted
+
+**Context.** The brief asks for an API gateway that verifies the JWT and limits the request rate. Until now the
+front called every service directly, and nothing slowed down a brute-force on the login.
+
+**Options.**
+1. *Kong or Traefik.* Full-featured (plugins, dashboards), but one more heavy component with its own database or
+   configuration model, for four small services.
+2. *NGINX with a JWT module or scripting (njs, Lua).* Verifies the signature inside the gateway, but the secret must
+   be duplicated there and the module is not in the standard image.
+3. *The existing NGINX with `auth_request`.* For each protected call, NGINX asks the auth service (`GET /v1/auth/me`)
+   whether the token is valid, then forwards the request or answers 401.
+
+**Decision.** Option 3. The NGINX that already serves the front and routes `/api/...` becomes the single entry point.
+- **JWT check:** `orders`, `inventory`, `payments`, `catalog` and the auth routes other than `login` and `refresh`
+  require a valid access token. A missing, forged, expired or refresh token gets a JSON 401 without reaching the service.
+- **Rate limiting** per client IP: 20 requests/s with a burst of 40 for the API, 10 per minute with a burst of 5 for
+  `login`. Beyond that, a JSON 429 with `Retry-After`. The limit runs before the token check, so floods without a token are slowed too.
+- The services still verify the token and the role themselves (ADR-006): the gateway is a first barrier, not the only one.
+
+**Consequences.**
+- ➕ One entry point, no new component, secret kept in the services only, login protected against brute force.
+- ➖ One extra internal call per request (cheap: no database access in `/me`).
+- ➖ Limits are per IP: clients behind the same address share a quota. Per-user limits would need a gateway that reads the claims.
+- ➖ The service ports stay published for development, and `/health` and `/metrics` are public (the front's observability tab reads them). Close the ports and protect `/metrics` before any real deployment.
