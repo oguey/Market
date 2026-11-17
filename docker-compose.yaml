@@ -146,6 +146,7 @@ services:
       S3_ENDPOINT: http://rustfs:9000
     depends_on:
       lake-init: { condition: service_completed_successfully }
+      lake-extract: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
   # Pseudonymisation, contrôles qualité et tables Delta : staging -> curated.
@@ -159,6 +160,24 @@ services:
       S3_ENDPOINT: http://rustfs:9000
     depends_on:
       lake-init: { condition: service_completed_successfully }
+      lake-staging: { condition: service_completed_successfully }
+    restart: "no"
+    profiles: ["jobs"]
+  # Tables d'analyse + catalogue de données : curated -> consumption.
+  #   docker compose run --rm lake-consumption
+  lake-consumption:
+    build: ./lake/spark
+    container_name: market-lake-consumption
+    command: ["python", "consumption.py"]
+    env_file: .env
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      CATALOG_OUT: /docs/DATA_CATALOG.md
+    volumes:
+      - ./docs:/docs
+    depends_on:
+      lake-init: { condition: service_completed_successfully }
+      lake-curated: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
 volumes:

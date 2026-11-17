@@ -93,3 +93,92 @@ db/            init scripts (schemas, tables, roles, seed)
 tests/         unit + API + end-to-end saga + isolation + contract tests
 docs/ADR.md    architecture decisions
 ```
+
+
+should configure it(them) to spark.eventLog.gcMetrics.youngGenerationGarbageCollectors or spark.eventLog.gcMetrics.oldGenerationGarbageCollectors
+  order_items: 3 lues, 3 apres dedoublonnage, 3 gardees, 0 rejetees
+  warehouses: 2 lues, 2 apres dedoublonnage, 2 gardees, 0 rejetees
+  stock: 3 lues, 3 apres dedoublonnage, 3 gardees, 0 rejetees
+  reservations: 2 lues, 2 apres dedoublonnage, 2 gardees, 0 rejetees
+  reservation_items: 2 lues, 2 apres dedoublonnage, 2 gardees, 0 rejetees
+  payments: 2 lues, 2 apres dedoublonnage, 2 gardees, 0 rejetees
+  products: 3 lues, 3 apres dedoublonnage, 3 gardees, 0 rejetees
+26/11/16 20:25:42 WARN AbstractS3ACommitterFactory: Using standard FileOutputCommitter to commit work. This is slow and potentially unsafe.
+26/11/16 20:25:42 WARN AbstractS3ACommitterFactory: Using standard FileOutputCommitter to commit work. This is slow and potentially unsafe.
+Rapport :                                                                       
++-----------------+---------+-----------------+---------+-------------+
+|table            |rows_read|rows_deduplicated|rows_kept|rows_rejected|
++-----------------+---------+-----------------+---------+-------------+
+|customers        |2        |2                |2        |0            |
+|orders           |3        |3                |3        |0            |
+|order_items      |3        |3                |3        |0            |
+|warehouses       |2        |2                |2        |0            |
+|stock            |3        |3                |3        |0            |
+|reservations     |2        |2                |2        |0            |
+|reservation_items|2        |2                |2        |0            |
+|payments         |2        |2                |2        |0            |
+|products         |3        |3                |3        |0            |
++-----------------+---------+-----------------+---------+-------------+
+
+PS C:\Users\lenovo\Desktop\Market> 
+metrics2.properties
+Tables lues dans staging : customers, orders, order_items, products, stock, warehouses, payments, reservations, reservation_items
+26/11/16 20:37:49 WARN GarbageCollectionMetrics: To enable non-built-in garbage collector(s) List(G1 Concurrent GC), usersshould configure it(them) to spark.eventLog.gcMetrics.youngGenerationGarbageCollectors or spark.eventLog.gcMetrics.oldGenerationGarbageCollectors
+Controles qualite :
++-------------------------------+--------+----------+------+                    
+|check_name                     |severity|violations|result|
++-------------------------------+--------+----------+------+
+|customers: id unique           |error   |0         |OK    |
+|orders: id unique              |error   |0         |OK    |
+|order_items: id unique         |error   |0         |OK    |
+|products: product_id unique    |error   |0         |OK    |
+|customers: email unique        |error   |0         |OK    |
+|orders -> customers            |error   |0         |OK    |
+|order_items -> orders          |error   |0         |OK    |
+|payments -> orders             |error   |0         |OK    |
+|stock -> warehouses            |error   |0         |OK    |
+|order_items -> products        |warn    |0         |OK    |
+|orders.total = somme des lignes|warn    |0         |OK    |
++-------------------------------+--------+----------+------+
+
+  curated/customers: 2 lignes (delta)                                           
+  curated/orders: 3 lignes (delta)
+  curated/order_items: 3 lignes (delta)
+  curated/products: 3 lignes (delta)
+  curated/stock: 3 lignes (delta)
+  curated/warehouses: 2 lignes (delta)
+  curated/payments: 2 lignes (delta)
+  curated/reservations: 2 lignes (delta)
+  curated/reservation_items: 2 lignes (delta)
+26/11/16 20:38:09 WARN AbstractS3ACommitterFactory: Using standard FileOutputCommitter to commit work. This is slow and potentially unsafe.
+26/11/16 20:38:09 WARN AbstractS3ACommitterFactory: Using standard FileOutputCommitter to commit work. This is slow and potentially unsafe.
+Termine.                                                                        
+PS C:\Users\lenovo\Desktop\Market> 
+
+ationGarbageCollectors
+26/11/16 20:45:17 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+                                                                                
+--- consumption/sales_daily
++----------+------------+----------------+-------------+-------------+----------------+
+|order_date|orders_total|orders_completed|orders_failed|revenue_euros|avg_basket_euros|
++----------+------------+----------------+-------------+-------------+----------------+
+|2026-11-16|3           |1               |2            |159.8        |159.8           |
++----------+------------+----------------+-------------+-------------+----------------+
+
+                                                                                
+--- consumption/sales_by_category
++--------+----------+------------+-------------+                                
+|category|units_sold|orders_count|revenue_euros|
++--------+----------+------------+-------------+
+|audio   |2         |1           |159.8        |
++--------+----------+------------+-------------+
+
+                                                                                
+--- consumption/stock_by_warehouse
++------------+----------+--------------+--------------+--------------+-------------+
+|warehouse_id|warehouse |capacity_units|units_in_stock|products_count|fill_rate_pct|
++------------+----------+--------------+--------------+--------------+-------------+
+|1           |Paris-Nord|10000         |66            |3             |0.7          |
+|2           |Lyon-Est  |5000          |0             |0             |0.0          |
++------------+----------+--------------+--------------+--------------+-------------+
+

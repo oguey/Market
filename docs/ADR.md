@@ -14,6 +14,7 @@ Statuses: *proposed*, *accepted*, *superseded*.
 | [007](#adr-007--rest-contracts-versioned-snapshots-under-v1) | REST contracts: versioned snapshots under `/v1` | accepted |
 | [008](#adr-008--tests-against-real-databases-without-docker) | Tests against real databases, without Docker | accepted |
 | [010](#adr-010--auth-service-bcrypt-login-access--refresh-jwt) | Auth service: bcrypt login, access + refresh JWT | accepted |
+| [011](#adr-011--lakehouse-rustfs-four-zones-spark-and-delta) | Lakehouse: RustFS, four zones, Spark and Delta | accepted |
 
 ---
 
@@ -238,3 +239,37 @@ silently on a 401.
 - ➕ Real sign-in, the rights matrix of ADR-006 now applies to real users, passwords are never stored in clear.
 - ➖ One more service to run. Tokens are still signed with a shared secret (HS256): move to RS256 if the services ever leave a single trust zone.
 - ➖ A refresh token cannot be revoked before it expires (no server-side list). A revocation table is the next step if needed.
+
+---
+
+## ADR-011 — Lakehouse: RustFS, four zones, Spark and Delta
+
+**Status:** accepted
+
+**Context.** The brief asks for a data lake / lakehouse fed from the PostgreSQL and MongoDB services, with
+zones, quality checks, a pseudonymised e-mail and a data catalogue. Everything must start with Docker and no cloud account.
+
+**Options.**
+1. *Cloud (ADLS Gen2 + Data Factory + Databricks).* Already practised in the retail360 lab, but it needs an account,
+   costs money and the jury could not replay it.
+2. *MinIO for object storage.* The obvious local choice, but MinIO stopped distributing its images in 2026
+   (Docker Hub and quay.io removed them), so `docker compose up` fails.
+3. *RustFS (S3-compatible), Spark and Delta Lake in Docker.*
+
+**Decision.** Option 3.
+- **Storage:** RustFS, S3 API, one bucket per zone: `raw` (faithful copy of the sources, Parquet, by extraction date),
+  `staging` (deduplicated and normalised, rejected rows kept in `_rejected`), `curated` (trusted Delta tables),
+  `consumption` (aggregates for BI). Raw and staging may hold personal data and are restricted.
+- **Extraction:** a small Python job copies 8 PostgreSQL tables and the MongoDB `catalog` collection to `raw`. The
+  `auth` schema is never extracted (password hashes).
+- **Processing:** PySpark jobs, run on demand and chained by `depends_on`. The e-mail is replaced by a salted SHA-256
+  (`email_hash`) and the name dropped in `curated`. Blocking quality checks (unique keys, valid references) stop the
+  run before anything is written; softer checks only warn.
+- **Delta Lake** for `curated` and `consumption`: atomic writes, history and schema enforcement, which makes the whole a lakehouse.
+- **Catalogue:** generated from the real schemas into `docs/DATA_CATALOG.md`.
+
+**Consequences.**
+- ➕ Reproducible with one command, no cloud cost, personal data protected before analysis, every table traceable to a source.
+- ➖ Batch only: the lake is a copy refreshed on demand, not in real time (the Kafka stream of the next volet covers freshness).
+- ➖ Spark images are heavy (Java, about 1 GB) and the first build is slow.
+- ➖ RustFS 1.0 is recent. The jobs only use the plain S3 API, so another S3 store (Garage, SeaweedFS) could replace it by changing the endpoint.
