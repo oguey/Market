@@ -1,0 +1,15 @@
+# Collecte les metriques /metrics de chaque microservice toutes les 10 secondes.
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: market-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - orders:8000
+          - inventory:8000
+          - payments:8000
+          - catalog:8000
+          - auth:8000

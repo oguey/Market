@@ -71,14 +71,16 @@ services:
       inventory: { condition: service_started }
       payments: { condition: service_started }
     restart: unless-stopped
-    
+
   auth:
     build: { context: ./services, args: { SERVICE: auth } }
     env_file: .env
     environment: { POSTGRES_HOST: postgres }
     ports: ["8005:8000"]
     depends_on: { postgres: { condition: service_healthy } }
-    restart: unless-stopped 
+    restart: unless-stopped
+
+  # Front + passerelle API (NGINX : verification du JWT, limite de debit)
   frontend:
     build: ./frontend
     ports: ["3000:80"]
@@ -90,8 +92,38 @@ services:
       auth: { condition: service_started }
     restart: unless-stopped
 
-   # ---------------------------------------------------------------- data lake (volet 2)
-  # Stockage S3 local. MinIO n'est plus distribué (images supprimées en 2026) : on utilise RustFS.
+  # ---------------------------------------------------------------- observabilite (volet 3)
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: market-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: market-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?definis GRAFANA_ADMIN_PASSWORD dans .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on: [prometheus]
+
+  # ---------------------------------------------------------------- data lake (volet 2)
+  # Stockage S3 local. MinIO n'est plus distribue (images supprimees en 2026) : on utilise RustFS.
   rustfs:
     image: rustfs/rustfs:1.0.0
     container_name: market-rustfs
@@ -106,7 +138,7 @@ services:
     volumes:
       - lake_data:/data
 
-  # Crée les 4 zones du lac au démarrage (attend que le stockage réponde), puis s'arrête.
+  # Cree les 4 zones du lac au demarrage (attend que le stockage reponde), puis s'arrete.
   lake-init:
     image: amazon/aws-cli:latest
     container_name: market-lake-init
@@ -121,7 +153,8 @@ services:
       for i in $$(seq 1 30); do aws --endpoint-url http://rustfs:9000 s3 ls >/dev/null 2>&1 && break; sleep 2; done;
       for zone in raw staging curated consumption; do aws --endpoint-url http://rustfs:9000 s3 mb s3://$$zone || true; done;
       aws --endpoint-url http://rustfs:9000 s3 ls"
-  # Copie PostgreSQL + MongoDB vers la zone raw. À lancer à la demande :
+
+  # Copie PostgreSQL + MongoDB vers la zone raw. A lancer a la demande :
   #   docker compose run --rm lake-extract
   lake-extract:
     build: ./lake/extract
@@ -137,7 +170,8 @@ services:
       lake-init: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
-  # Nettoyage raw -> staging avec Spark. À lancer à la demande :
+
+  # Nettoyage raw -> staging avec Spark. A lancer a la demande :
   #   docker compose run --rm lake-staging
   lake-staging:
     build: ./lake/spark
@@ -150,7 +184,8 @@ services:
       lake-extract: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
-  # Pseudonymisation, contrôles qualité et tables Delta : staging -> curated.
+
+  # Pseudonymisation, controles qualite et tables Delta : staging -> curated.
   #   docker compose run --rm lake-curated
   lake-curated:
     build: ./lake/spark
@@ -164,7 +199,8 @@ services:
       lake-staging: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
-  # Tables d'analyse + catalogue de données : curated -> consumption.
+
+  # Tables d'analyse + catalogue de donnees : curated -> consumption.
   #   docker compose run --rm lake-consumption
   lake-consumption:
     build: ./lake/spark
@@ -181,8 +217,10 @@ services:
       lake-curated: { condition: service_completed_successfully }
     restart: "no"
     profiles: ["jobs"]
+
 volumes:
   pg_data:
   mongo_data:
   lake_data:
-  
+  prometheus_data:
+  grafana_data:
