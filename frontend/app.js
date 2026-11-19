@@ -122,9 +122,7 @@ function updateUser() {
 }
 
 function showAuth(error = "") {
-  document.body.classList.toggle("auth-page", !state.token);
   $("#auth-modal").classList.remove("hidden");
-  $("#close-auth").classList.toggle("hidden", !state.token);
   $("#auth-error").textContent = error;
   $("#auth-error").classList.toggle("hidden", !error);
   $("#password-input").value = "";
@@ -132,10 +130,8 @@ function showAuth(error = "") {
 }
 
 function closeAuth() {
-  if (!state.token) return;
   $("#auth-modal").classList.add("hidden");
   $("#auth-error").classList.add("hidden");
-  document.body.classList.remove("auth-page");
 }
 
 function toast(message) {
@@ -421,14 +417,6 @@ $("#user-menu").addEventListener("click", logout);
 $("#top-user").addEventListener("click", logout);
 $("#mobile-menu").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
 $("#close-auth").addEventListener("click", closeAuth);
-$("#toggle-password").addEventListener("click", () => {
-  const password = $("#password-input");
-  const isVisible = password.type === "text";
-  password.type = isVisible ? "password" : "text";
-  $("#toggle-password").textContent = isVisible ? "Afficher" : "Masquer";
-  $("#toggle-password").setAttribute("aria-label", isVisible ? "Afficher le mot de passe" : "Masquer le mot de passe");
-  $("#toggle-password").setAttribute("aria-pressed", String(!isVisible));
-});
 $("#order-search").addEventListener("input", renderOrders);
 $("#order-filter").addEventListener("change", renderOrders);
 $("#product-search").addEventListener("input", renderCatalog);

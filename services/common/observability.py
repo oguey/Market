@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
+from common import tracing
+
 REQUESTS = Counter("http_requests_total", "HTTP requests", ["service", "method", "route", "status"])
 LATENCY = Histogram("http_request_duration_seconds", "HTTP latency", ["service", "route"])
 CIRCUIT_STATE = Gauge("circuit_breaker_state", "0=closed 1=half_open 2=open", ["dependency"])
@@ -16,6 +18,7 @@ def setup(app: FastAPI, service: str, health_check: Callable[[], None]) -> None:
     logging.basicConfig(level=logging.INFO,
                         format=f"%(asctime)s %(levelname)s service={service} %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per outgoing call is too noisy
+    tracing.setup(app, service)  # no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set
 
     @app.middleware("http")
     async def metrics(request: Request, call_next):

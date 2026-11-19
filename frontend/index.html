@@ -117,39 +117,16 @@
     <div class="modal-backdrop hidden" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
       <form class="auth-dialog" id="auth-form">
         <button class="modal-close" type="button" id="close-auth" aria-label="Fermer">×</button>
-        <aside class="auth-visual" aria-label="Market Operations">
-          <a class="brand auth-brand" href="#" aria-label="Market">
-            <span class="brand-mark">m</span>
-            <span class="brand-copy"><strong>market</strong><small>OPERATIONS</small></span>
-          </a>
-          <div class="auth-visual-copy">
-            <span class="auth-kicker"><span class="auth-kicker-dot"></span> VOTRE ESPACE DE PILOTAGE</span>
-            <h2>Chaque opération,<br>en un seul endroit.</h2>
-            <p>Commandes, catalogue et logistique réunis pour vous aider à garder une longueur d’avance.</p>
-          </div>
-          <div class="auth-visual-card" aria-hidden="true">
-            <div class="auth-visual-card-top"><span>Activité de la plateforme</span><span class="auth-live"><i></i> En direct</span></div>
-            <div class="auth-visual-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            <div class="auth-visual-card-foot"><span>Commandes</span><span>Catalogue</span><span>Logistique</span></div>
-          </div>
-          <p class="auth-visual-footer">Un espace sécurisé pour votre équipe.</p>
-        </aside>
-        <div class="auth-form-content">
-          <span class="auth-mobile-brand"><span class="brand-mark">m</span><strong>market</strong></span>
-          <p class="eyebrow">BIENVENUE</p>
-          <h1 id="auth-title">Connectez-vous</h1>
-          <p class="auth-intro">Accédez à votre espace Market avec vos identifiants professionnels.</p>
-          <label class="field-label" for="email-input">Adresse e-mail</label>
-          <input id="email-input" type="email" placeholder="vous@entreprise.com" autocomplete="username" required>
-          <label class="field-label" for="password-input">Mot de passe</label>
-          <div class="password-field">
-            <input id="password-input" type="password" placeholder="Saisissez votre mot de passe" autocomplete="current-password" required>
-            <button class="password-toggle" id="toggle-password" type="button" aria-label="Afficher le mot de passe" aria-pressed="false">Afficher</button>
-          </div>
-          <p class="form-error hidden" id="auth-error" role="alert"></p>
-          <button class="primary-button auth-submit" id="auth-submit" type="submit"><span>Se connecter</span><span aria-hidden="true">→</span></button>
-          <p class="auth-help">L’accès est réservé aux membres de votre équipe.<br>Votre session reste privée sur cet appareil.</p>
-        </div>
+        <span class="brand-mark auth-mark">m</span>
+        <p class="eyebrow">ACCÈS À LA PLATEFORME</p><h2 id="auth-title">Connexion</h2>
+        <p class="auth-intro">Connectez-vous avec votre email et votre mot de passe. Vos droits dépendent de votre rôle. La session reste uniquement dans l’onglet du navigateur.</p>
+        <label class="field-label" for="email-input">Email</label>
+        <input id="email-input" type="email" placeholder="prenom@market.test" autocomplete="username" required>
+        <label class="field-label" for="password-input">Mot de passe</label>
+        <input id="password-input" type="password" placeholder="Votre mot de passe" autocomplete="current-password" required>
+        <p class="form-error hidden" id="auth-error"></p>
+        <button class="primary-button auth-submit" id="auth-submit" type="submit">Se connecter <span>→</span></button>
+        <p class="auth-help">Comptes de test : <code>admin@market.test</code>, <code>catalog@market.test</code>, <code>lea@market.test</code> (analyste), <code>karim@market.test</code> (logistique).</p>
       </form>
     </div>
     <div class="toast hidden" id="toast" role="status"></div>

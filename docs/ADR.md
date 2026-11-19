@@ -1,4 +1,4 @@
-# Architecture Decision Records — Market microservices
+﻿# Architecture Decision Records — Market microservices
 
 Format from the project brief: **Status · Context · Options · Decision · Consequences**.
 Statuses: *proposed*, *accepted*, *superseded*.
@@ -16,6 +16,7 @@ Statuses: *proposed*, *accepted*, *superseded*.
 | [010](#adr-010--auth-service-bcrypt-login-access--refresh-jwt) | Auth service: bcrypt login, access + refresh JWT | accepted |
 | [011](#adr-011--lakehouse-rustfs-four-zones-spark-and-delta) | Lakehouse: RustFS, four zones, Spark and Delta | accepted |
 | [012](#adr-012--api-gateway-nginx-with-jwt-check-and-rate-limiting) | API gateway: NGINX with JWT check and rate limiting | accepted |
+| [013](#adr-013--distributed-tracing-with-opentelemetry-and-jaeger) | Distributed tracing: OpenTelemetry + Jaeger | accepted |
 
 ---
 
@@ -304,3 +305,31 @@ front called every service directly, and nothing slowed down a brute-force on th
 - ➖ One extra internal call per request (cheap: no database access in `/me`).
 - ➖ Limits are per IP: clients behind the same address share a quota. Per-user limits would need a gateway that reads the claims.
 - ➖ The service ports stay published for development, and `/health` and `/metrics` are public (the front's observability tab reads them). Close the ports and protect `/metrics` before any real deployment.
+
+## ADR-013 — Distributed tracing with OpenTelemetry and Jaeger
+
+**Status:** accepted
+
+**Context.** Metrics (ADR on Prometheus/Grafana) say *that* something is slow or failing, not *where*. A single
+order crosses Orders → Catalog → Inventory → Payments and writes to PostgreSQL. The brief asks for traces so
+that one request can be followed across services.
+
+**Options.**
+1. *Correlation id in logs only.* Cheap, but no timing per hop and no visual of the call tree.
+2. *Vendor agent (Datadog, New Relic).* Powerful, paid, and hides the mechanism.
+3. *OpenTelemetry SDK + Jaeger.* Open standard, W3C `traceparent` header, free, UI included.
+
+**Decision.** Option 3. `common/tracing.py` is called from `observability.setup()`, so all five services get it
+without touching business code. It instruments FastAPI (server spans), httpx (client spans, which inject
+`traceparent` into outgoing calls) and psycopg (one span per SQL query). `/health` and `/metrics` are excluded to
+avoid noise. Spans go by OTLP/HTTP to Jaeger v2 (`jaeger:4318`, UI on port 16686). Tracing is **off unless
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set**, so tests and local runs without Jaeger are unaffected, and any setup error
+only logs a warning: tracing must never take a service down.
+
+**Consequences.**
+- ➕ One order = one trace with the full call tree, durations per hop and per SQL query.
+- ➕ Verified by `tests/test_tracing.py`: two real HTTP services share one trace id; health/metrics are not traced.
+- ➖ Jaeger's default storage is in memory: traces are lost on restart. *Plan B:* Elasticsearch/OpenSearch or Tempo.
+- ➖ Every request is sampled (fine for a prototype). *Plan B:* a ratio sampler in production.
+- ➖ The NGINX gateway does not yet produce spans, so a trace starts at the first microservice.
+

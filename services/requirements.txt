@@ -9,3 +9,8 @@ ariadne==1.1.1
 pyjwt==2.15.1
 prometheus-client==0.26.0
 bcrypt==5.0.0
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-instrumentation-httpx==0.66b2
+opentelemetry-instrumentation-psycopg==0.66b2

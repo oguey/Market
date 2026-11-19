@@ -35,7 +35,7 @@ services:
   inventory:
     build: { context: ./services, args: { SERVICE: inventory } }
     env_file: .env
-    environment: { POSTGRES_HOST: postgres }
+    environment: { POSTGRES_HOST: postgres, OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318 }
     ports: ["8002:8000"]
     depends_on: { postgres: { condition: service_healthy } }
     restart: unless-stopped
@@ -43,7 +43,7 @@ services:
   payments:
     build: { context: ./services, args: { SERVICE: payments } }
     env_file: .env
-    environment: { POSTGRES_HOST: postgres }
+    environment: { POSTGRES_HOST: postgres, OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318 }
     ports: ["8003:8000"]
     depends_on: { postgres: { condition: service_healthy } }
     restart: unless-stopped
@@ -51,7 +51,7 @@ services:
   catalog:
     build: { context: ./services, args: { SERVICE: catalog } }
     env_file: .env
-    environment: { MONGO_HOST: mongo }
+    environment: { MONGO_HOST: mongo, OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318 }
     ports: ["8004:8000"]
     depends_on: { mongo: { condition: service_healthy } }
     restart: unless-stopped
@@ -64,6 +64,7 @@ services:
       CATALOG_URL: http://catalog:8000
       INVENTORY_URL: http://inventory:8000
       PAYMENTS_URL: http://payments:8000
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     ports: ["8001:8000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -75,7 +76,7 @@ services:
   auth:
     build: { context: ./services, args: { SERVICE: auth } }
     env_file: .env
-    environment: { POSTGRES_HOST: postgres }
+    environment: { POSTGRES_HOST: postgres, OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318 }
     ports: ["8005:8000"]
     depends_on: { postgres: { condition: service_healthy } }
     restart: unless-stopped
@@ -121,6 +122,15 @@ services:
     ports:
       - "3001:3000"
     depends_on: [prometheus]
+
+  # Traces distribuees (OpenTelemetry) : une commande = une trace qui traverse les services
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.23.0
+    container_name: market-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"   # interface web
+      - "4318:4318"     # reception OTLP/HTTP
 
   # ---------------------------------------------------------------- data lake (volet 2)
   # Stockage S3 local. MinIO n'est plus distribue (images supprimees en 2026) : on utilise RustFS.
