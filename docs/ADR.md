@@ -13,6 +13,7 @@ Statuses: *proposed*, *accepted*, *superseded*.
 | [006](#adr-006--jwt-checked-in-every-service-rbac-in-code) | JWT checked in every service, RBAC in code | accepted |
 | [007](#adr-007--rest-contracts-versioned-snapshots-under-v1) | REST contracts: versioned snapshots under `/v1` | accepted |
 | [008](#adr-008--tests-against-real-databases-without-docker) | Tests against real databases, without Docker | accepted |
+| [009](#adr-009--partition-the-order-history-not-ordersorders) | Partition the order history, not orders.orders | accepted |
 | [010](#adr-010--auth-service-bcrypt-login-access--refresh-jwt) | Auth service: bcrypt login, access + refresh JWT | accepted |
 | [011](#adr-011--lakehouse-rustfs-four-zones-spark-and-delta) | Lakehouse: RustFS, four zones, Spark and Delta | accepted |
 | [012](#adr-012--api-gateway-nginx-with-jwt-check-and-rate-limiting) | API gateway: NGINX with JWT check and rate limiting | accepted |
@@ -218,6 +219,34 @@ with `httpx.MockTransport`.
 - ➖ The first run downloads MongoDB (about 100 MB). The in-process MongoDB build targets Ubuntu 22.04, and CI is pinned to it.
 
 ---
+
+## ADR-009 — Partition the order history, not `orders.orders`
+
+**Status:** accepted
+
+**Context.** The brief asks to split very large tables, for example orders by date. PostgreSQL requires every
+primary key and UNIQUE constraint of a partitioned table to include the partition column. Orders relies on
+`UNIQUE(idempotency_key)` (ADR-004) and on the foreign key `order_items.order_id -> orders.id`.
+
+**Options.**
+1. *Partition `orders.orders` by `created_at`.* Needs PK `(id, created_at)`, drops the foreign key from `order_items`
+   and makes `idempotency_key` unique only per partition. It breaks the saga's idempotency.
+2. *Move idempotency keys to a separate table*, then partition. More schema and code changes in a service that works.
+3. *Partition an append-only event table* `orders.order_events` (monthly ranges), filled by a trigger on `orders.orders`.
+
+**Decision.** Option 3. The journal needs no foreign key or unique key besides `(id, occurred_at)`, old months can be
+detached or archived instantly, and it is the natural source for the Data Lake.
+
+**Proof (300,052 orders).** A query on the current month reads one partition and removes 16 others (`Subplans Removed: 16`,
+13 ms); the same query without a date filter reads every partition (34 ms). Indexes on `orders.orders`: the "last 10 orders
+of a customer" query drops from 3,064 pages and 30 ms (sequential scan) to 17 pages and 0.09 ms (index). Backup and restore were
+tested: `pg_dump` (18 MB) restored in a temporary database gives the same row counts and the same checksum, and the
+per-service privileges survive.
+
+**Consequences.**
+- ➕ No change in the services. Partition pruning shows in `EXPLAIN` (`Subplans Removed`).
+- ➖ `orders.orders` itself is not partitioned. *Plan B:* option 2 if the table outgrows a single server.
+- ➖ Partitions must be created ahead of time (`orders.create_order_events_partition`). A DEFAULT partition is the safety net.
 
 ## ADR-010 — Auth service: bcrypt login, access + refresh JWT
 
