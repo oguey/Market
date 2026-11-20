@@ -17,6 +17,8 @@ Statuses: *proposed*, *accepted*, *superseded*.
 | [011](#adr-011--lakehouse-rustfs-four-zones-spark-and-delta) | Lakehouse: RustFS, four zones, Spark and Delta | accepted |
 | [012](#adr-012--api-gateway-nginx-with-jwt-check-and-rate-limiting) | API gateway: NGINX with JWT check and rate limiting | accepted |
 | [013](#adr-013--distributed-tracing-with-opentelemetry-and-jaeger) | Distributed tracing: OpenTelemetry + Jaeger | accepted |
+| [014](#adr-014--real-time-kafka-events-spark-structured-streaming-payment-failure-alert) | Real time: Kafka, Spark Structured Streaming, payment-failure alert | accepted |
+| [014](#adr-014--real-time-kafka-events-spark-structured-streaming-payment-failure-alert) | Real time: Kafka, Spark Structured Streaming, payment-failure alert | accepted |
 
 ---
 
@@ -333,3 +335,35 @@ only logs a warning: tracing must never take a service down.
 - ➖ Every request is sampled (fine for a prototype). *Plan B:* a ratio sampler in production.
 - ➖ The NGINX gateway does not yet produce spans, so a trace starts at the first microservice.
 
+
+## ADR-014 — Real time: Kafka events, Spark Structured Streaming, payment-failure alert
+
+**Status:** accepted
+
+**Context.** The brief asks for a streaming pipeline that reads business events from Kafka, groups them by time window
+with state and a watermark, survives a crash without losing or repeating events, raises at least one real-time alert
+visible on a dashboard, and monitors the flow (messages per second, lag, errors). Streaming costs more than batch, so it
+must target the role where waiting hurts most. In the role table of the brief, payment (`service_account`) is rated
+"very strong": a failed payment or a fraud spike must be seen before the order ends.
+
+**Options.**
+1. *Poll the database every few seconds.* Simple, but it loads PostgreSQL, has no history of events, and no replay.
+2. *Kafka + a hand-written consumer.* Light, but windows, state, watermark and checkpoint would all be written by hand.
+3. *Kafka + Spark Structured Streaming.* Windows, watermark, state and checkpoint are built in; same engine as the lakehouse (ADR-011).
+Flink was considered and left aside: Spark and Delta are already in the project, so there is one engine to run and explain.
+
+**Decision.** Option 3, with the order status events as the flow.
+- **Events.** Orders publishes `order.status_changed` to topic `market.orders` (3 partitions, key = order id, so the events of one order stay in order) after each stored status change. Publishing is best effort and non-blocking: if Kafka is down, the order is not slowed or refused, and the error is logged. The producer is idempotent (`acks=all`).
+- **Processing.** Spark reads Kafka every 10 s, drops duplicates by `event_id` inside a 2-minute watermark, counts orders per 1-minute window and per status, and raises a `payment_failure_spike` alert when a window holds 3 failed payments or more.
+- **Delivery guarantee: exactly-once in effect.** Kafka to Spark is at-least-once. The checkpoint (Docker volume) stores the offsets and state, so after a crash Spark replays the last micro-batch; the deduplication by `event_id` and the idempotent Delta write (`txnAppId` + `txnVersion` = batch id) make that replay change nothing.
+- **Outputs.** Window counts and alerts are appended to Delta tables `consumption/streaming/order_stats` and `alerts`. The alert is published to the Prometheus metrics before the Delta write, so Grafana shows it without waiting for storage.
+- **Monitoring.** The job exposes `market_stream_*` metrics (messages per second, Kafka lag, batch duration, errors, alerts). The lag is computed by the job (latest Kafka offset minus processed offset), because Spark keeps its offsets in its checkpoint and not in a Kafka consumer group: Kafka UI therefore shows no consumer group for it.
+
+**Consequences.**
+- ➕ A crash and restart loses nothing and counts nothing twice (shown live: stop the job, send 4 failures, restart, the window shows 4).
+- ➕ Orders does not depend on Kafka to work.
+- ➖ Measured on the local S3 store, a micro-batch with two Delta writes takes about 5 s, so the "p99 < 2 s" target of the brief is not met end to end. The alert metric is published before the writes, which keeps the visible delay close to the 10 s trigger. *Plan B:* a shorter trigger, a faster store, or Kafka-only alerting with Delta written asynchronously.
+- ➖ A window updated several times leaves several rows in Delta; the most recent `updated_at` is the valid one. *Plan B:* a periodic compaction or a view keeping the latest row.
+- ➖ Fixed one-minute windows can split a burst of failures across two windows and hide a spike. *Plan B:* sliding windows (for example 1 minute every 10 s).
+- ➖ One Kafka broker and the checkpoint on a local volume: no high availability. *Plan B:* 3 brokers with replication 3, and a checkpoint on shared storage.
+- ➖ At-least-once publication from Orders: an event written to the database but lost before Kafka confirms is not replayed. *Plan B:* the outbox pattern (events saved in the same transaction, published by a relay).

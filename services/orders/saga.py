@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from psycopg_pool import ConnectionPool
 
+from common import events
 from common.resilience import DependencyError, ServiceClient
 
 log = logging.getLogger("saga")
@@ -53,7 +54,10 @@ def fetch_prices(catalog: ServiceClient, product_ids: list[int]) -> dict[int, in
 
 def _set_status(pool: ConnectionPool, order_id: int, status: str) -> None:
     with pool.connection() as conn:
-        conn.execute("UPDATE orders.orders SET status = %s WHERE id = %s", (status, order_id))
+        row = conn.execute("UPDATE orders.orders SET status = %s WHERE id = %s RETURNING customer_id, total_cents",
+                           (status, order_id)).fetchone()
+    if row:  # after the commit: an event is only published for a status that is really stored
+        events.publish_order_status(order_id, row["customer_id"], status, row["total_cents"])
 
 
 def _release(deps: Dependencies, order_id: int) -> None:
@@ -99,6 +103,7 @@ def place_order(pool: ConnectionPool, deps: Dependencies, load_order, customer_i
                 "INSERT INTO orders.order_items (order_id, product_id, quantity, unit_price_cents) "
                 "VALUES (%s, %s, %s, %s)",
                 [(order_id, i["product_id"], i["quantity"], prices[i["product_id"]]) for i in items])
+    events.publish_order_status(order_id, customer_id, "pending", total)
 
     # 1) reserve stock
     try:

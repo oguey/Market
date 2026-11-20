@@ -13,3 +13,10 @@ scrape_configs:
           - payments:8000
           - catalog:8000
           - auth:8000
+
+  # Job Spark Streaming (volet 4) : debit, retard Kafka (lag), alertes.
+  - job_name: market-streaming
+    metrics_path: /
+    static_configs:
+      - targets:
+          - stream-orders:8008

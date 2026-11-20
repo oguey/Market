@@ -65,12 +65,14 @@ services:
       INVENTORY_URL: http://inventory:8000
       PAYMENTS_URL: http://payments:8000
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports: ["8001:8000"]
     depends_on:
       postgres: { condition: service_healthy }
       catalog: { condition: service_started }
       inventory: { condition: service_started }
       payments: { condition: service_started }
+      kafka: { condition: service_healthy }
     restart: unless-stopped
 
   auth:
@@ -131,6 +133,53 @@ services:
     ports:
       - "16686:16686"   # interface web
       - "4318:4318"     # reception OTLP/HTTP
+
+  # ---------------------------------------------------------------- temps reel (volet 4)
+  # Kafka en mode KRaft (un seul noeud, sans ZooKeeper). Les services parlent a kafka:9092.
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: market-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+
+  # Cree le topic des commandes : 3 partitions, cle = order_id (tous les evenements d'une commande restent dans l'ordre)
+  kafka-init:
+    image: apache/kafka:3.9.1
+    depends_on: { kafka: { condition: service_healthy } }
+    entrypoint: ["/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka:9092", "--create", "--if-not-exists", "--topic", "market.orders", "--partitions", "3", "--replication-factor", "1"]
+    restart: "no"
+
+  # Interface web pour Kafka : topics, messages, partitions, lag. http://localhost:8090
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.5.0
+    container_name: market-kafka-ui
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: market
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "false"
+    ports: ["8090:8080"]
+    depends_on: { kafka: { condition: service_healthy } }
 
   # ---------------------------------------------------------------- data lake (volet 2)
   # Stockage S3 local. MinIO n'est plus distribue (images supprimees en 2026) : on utilise RustFS.
@@ -195,6 +244,24 @@ services:
     restart: "no"
     profiles: ["jobs"]
 
+  # Spark Structured Streaming : Kafka -> fenetres d'1 min -> alertes + Delta. Metriques sur :8008.
+  #   Arret volontaire pour la demo de panne :  docker compose stop stream-orders   puis   docker compose start stream-orders
+  stream-orders:
+    build: ./lake/spark
+    container_name: market-stream-orders
+    command: ["python", "stream_orders.py"]
+    env_file: .env
+    environment:
+      S3_ENDPOINT: http://rustfs:9000
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - stream_ckpt:/checkpoints
+    ports: ["8008:8008"]
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      lake-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+
   # Pseudonymisation, controles qualite et tables Delta : staging -> curated.
   #   docker compose run --rm lake-curated
   lake-curated:
@@ -229,6 +296,8 @@ services:
     profiles: ["jobs"]
 
 volumes:
+  stream_ckpt:
+  kafka_data:
   pg_data:
   mongo_data:
   lake_data:

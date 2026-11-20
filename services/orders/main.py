@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from psycopg import errors
 from pydantic import BaseModel, EmailStr, Field
 
-from common import observability
+from common import events, observability
 from common.auth import ServiceToken, require_roles
 from common.db import dsn_for, make_pool, ping
 from common.resilience import DependencyError, ServiceClient
@@ -83,6 +83,7 @@ def create_app(dsn: str | None = None, deps: Dependencies | None = None) -> Fast
     async def lifespan(_):
         pool.open()
         yield
+        events.flush()
         pool.close()
 
     app = FastAPI(title="Market - Orders", version="1.0.0", lifespan=lifespan)
@@ -154,7 +155,9 @@ def create_app(dsn: str | None = None, deps: Dependencies | None = None) -> Fast
         with pool.connection() as conn:
             conn.execute("UPDATE orders.orders SET status = %s WHERE id = %s AND status = %s",
                          (body.status, order_id, current))
-        return load_order(order_id)
+        order = load_order(order_id)
+        events.publish_order_status(order_id, order["customer_id"], body.status, order["total_cents"])
+        return order
 
     return app
 
