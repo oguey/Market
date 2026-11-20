@@ -477,6 +477,5 @@ renderCatalog();
 renderLogistics();
 renderOverview();
 renderHealth();
-if (state.token) refreshAll(true);
-else showAuth();
+if (!state.token) showAuth();
 window.setInterval(() => refreshAll(false), 30000);
